@@ -1,6 +1,7 @@
 <?php
 // Thêm / xóa khung giờ trong giỏ hàng (bảng gio_hang)
 require_once 'config/db.php';
+require_customer();
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') redirect('cart.php');
 
 // Nút Xóa từng dòng gửi remove_id nên không cần field action

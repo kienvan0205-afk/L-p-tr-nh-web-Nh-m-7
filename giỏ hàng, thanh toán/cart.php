@@ -1,4 +1,6 @@
 <?php
+require_once 'config/db.php';
+require_customer();
 $page_title = 'Giỏ hàng';
 $trang = 'cart';
 require 'includes/header.php';

@@ -8,6 +8,10 @@ header("Content-Type: text/html; charset=UTF-8");
 // ========================================================
 
 require_once 'connect.php';
+$isCustomer = ($_SESSION['vai_tro'] ?? '') === 'Khách hàng' && !empty($_SESSION['idKH']);
+$projectPath = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
+$cartTarget = '../giỏ hàng, thanh toán/cart.php';
+$cartLoginUrl = '../Đăng nhập/dangnhap.php?notice=cart&return=' . rawurlencode($projectPath . '/giỏ hàng, thanh toán/cart.php');
 
 // Mảng 10 sân thể thao nạp sẵn - Sử dụng đường dẫn ảnh nội bộ images/ để nộp Google Drive
 $sample_courts = [
@@ -215,6 +219,8 @@ $filter_desc = implode(' · ', $filter_parts);
             color: var(--dark);
             line-height: 1.6;
         }
+        html { scroll-behavior: smooth; }
+        #home, #search-box, #courts-list { scroll-margin-top: 92px; }
 
         .container {
             max-width: 1200px;
@@ -594,6 +600,7 @@ $filter_desc = implode(' · ', $filter_parts);
             transition: transform 0.4s ease;
             display: block;
         }
+        .court-detail-link { display: block; height: 100%; }
 
         .court-card:hover .court-thumb img {
             transform: scale(1.06);
@@ -641,6 +648,7 @@ $filter_desc = implode(' · ', $filter_parts);
             margin-bottom: 8px;
             line-height: 1.35;
         }
+        .court-title a { color: inherit; text-decoration: none; }
 
         .court-location {
             display: flex;
@@ -855,12 +863,12 @@ $filter_desc = implode(' · ', $filter_parts);
                 <span>SportBooking</span>
             </a>
             <ul class="nav-links">
-                <li><a href="index.php">Trang chủ</a></li>
-                <li><a href="index.php">Danh sách sân (<?php echo (int)$total_found; ?>)</a></li>
+                <li><a href="#home">Trang chủ</a></li>
+                <li><a href="#courts-list">Danh sách sân (<?php echo (int)$total_found; ?>)</a></li>
                 <li><a href="#search-box">Tìm kiếm</a></li>
             </ul>
             <div class="nav-actions">
-    <a href="../giỏ hàng, thanh toán/cart.php" class="btn-cart">🛒 Giỏ ca sân</a>
+    <a href="<?= htmlspecialchars($isCustomer ? $cartTarget : $cartLoginUrl, ENT_QUOTES, 'UTF-8') ?>" class="btn-cart">🛒 Giỏ ca sân</a>
                 <?php if (isset($_SESSION['HoTen'])): ?>
                     <span style="font-size: 14px; font-weight: 700; color: var(--primary);">👤 <?php echo htmlspecialchars($_SESSION['HoTen']); ?> (<?php echo htmlspecialchars($_SESSION['vai_tro'] ?? 'Khách'); ?>)</span>
                     <a href="../Đăng nhập/dangxuat.php" style="font-size: 13px; color: #dc2626; text-decoration: underline; margin-left: 5px;">Đăng xuất</a>
@@ -872,7 +880,7 @@ $filter_desc = implode(' · ', $filter_parts);
     </header>
 
     <!-- 2. HERO BANNER -->
-    <section class="hero-banner">
+    <section class="hero-banner" id="home">
         <div class="container">
             <span class="hero-pill">⚡ NỀN TẢNG ĐẶT SÂN THỂ THAO TRỰC TUYẾN 24/7</span>
             <h1>THUẬN TIỆN - DỄ DÀNG - NHANH CHÓNG</h1>
@@ -947,7 +955,7 @@ $filter_desc = implode(' · ', $filter_parts);
     </div>
 
     <!-- 4. DANH SÁCH 10 SÂN THỂ THAO -->
-    <main class="container">
+    <main class="container" id="courts-list">
 
         <!-- Thanh trạng thái kết quả -->
         <div class="search-status-bar">
@@ -974,21 +982,26 @@ $filter_desc = implode(' · ', $filter_parts);
                         $court_img = 'images/san' . $court_id . '.jpg';
                         $court_price = number_format($court['gia'], 0, ',', '.');
                         $court_address = isset($court['dia_chi']) ? $court['dia_chi'] : 'TP. Hồ Chí Minh';
+                        $detailUrl = '../chi tiết sân/dat_san.php?ma_san=' . $court_id . ($ngay_dat !== '' ? '&ngay=' . urlencode($ngay_dat) : '');
+                        $returnPath = $projectPath . '/chi tiết sân/dat_san.php?ma_san=' . $court_id . ($ngay_dat !== '' ? '&ngay=' . urlencode($ngay_dat) : '');
+                        $bookingUrl = $isCustomer ? $detailUrl : '../Đăng nhập/dangnhap.php?notice=book&return=' . rawurlencode($returnPath);
                     ?>
                     <div class="court-card">
                         <!-- Khung hình ảnh (Sử dụng ảnh nội bộ trong thư mục images/) -->
                         <div class="court-thumb">
+                            <a class="court-detail-link" href="<?= htmlspecialchars($detailUrl, ENT_QUOTES, 'UTF-8') ?>">
                             <img src="<?php echo htmlspecialchars($court_img); ?>" 
                                  alt="<?php echo htmlspecialchars($court_name); ?>" 
                                  loading="lazy"
                                  onerror="this.onerror=null; this.src='images/san1.jpg';">
+                            </a>
                             <span class="badge-status">● <?php echo htmlspecialchars($court['trang_thai']); ?></span>
                             <span class="badge-category"><?php echo htmlspecialchars($court['loai_san']); ?></span>
                         </div>
 
                         <!-- Nội dung sân -->
                         <div class="court-content">
-                            <h3 class="court-title"><?php echo htmlspecialchars($court_name); ?></h3>
+                            <h3 class="court-title"><a href="<?= htmlspecialchars($detailUrl, ENT_QUOTES, 'UTF-8') ?>"><?php echo htmlspecialchars($court_name); ?></a></h3>
                             <div class="court-location">
                                 <span>📍</span>
                                 <span><?php echo htmlspecialchars($court_address); ?></span>
@@ -999,7 +1012,7 @@ $filter_desc = implode(' · ', $filter_parts);
                                     <span class="price-label">Giá thuê từ</span>
                                     <span class="price-val"><?php echo $court_price; ?> đ<small style="font-size:12px;font-weight:600;color:var(--gray);">/giờ</small></span>
                                 </div>
-                                <a href="../chi tiết sân/dat_san.php?ma_san=<?php echo $court_id; ?><?php echo $ngay_dat !== '' ? '&amp;ngay=' . urlencode($ngay_dat) : ''; ?>" class="btn-book">Đặt sân</a>
+                                <a href="<?= htmlspecialchars($bookingUrl, ENT_QUOTES, 'UTF-8') ?>" class="btn-book">Đặt sân</a>
                             </div>
                         </div>
                     </div>

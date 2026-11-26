@@ -112,6 +112,27 @@ $idKH  = (int)($_SESSION['idKH'] ?? 0); // khách đã xác nhận đơn trong p
 function money($n): string { return number_format((float)$n, 0, ',', '.') . 'đ'; }
 function e($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 function redirect(string $to): void { header('Location: ' . $to); exit; }
+function is_customer_session(): bool {
+    return ($_SESSION['vai_tro'] ?? '') === 'Khách hàng' && (int)($_SESSION['idKH'] ?? 0) > 0;
+}
+function safe_return_path(?string $path): ?string {
+    $path = trim((string)$path);
+    if ($path === '' || !str_starts_with($path, '/') || str_starts_with($path, '//')) return null;
+    $parts = parse_url($path);
+    if ($parts === false || isset($parts['scheme'], $parts['host'], $parts['user'], $parts['pass'])) return null;
+    return $path;
+}
+function customer_login_url(?string $returnPath = null): string {
+    $url = '../Đăng nhập/dangnhap.php?notice=customer';
+    $returnPath = safe_return_path($returnPath);
+    return $returnPath === null ? $url : $url . '&return=' . rawurlencode($returnPath);
+}
+function require_customer(): void {
+    if (is_customer_session()) return;
+    $returnPath = $_SERVER['REQUEST_METHOD'] === 'GET' ? rawurldecode($_SERVER['REQUEST_URI'] ?? '') : '';
+    header('Location: ' . customer_login_url($returnPath));
+    exit;
+}
 function flash(?string $msg = null, string $type = 'ok') {
     if ($msg !== null) { $_SESSION['flash'] = ['msg' => $msg, 'type' => $type]; return null; }
     $f = $_SESSION['flash'] ?? null; unset($_SESSION['flash']); return $f;

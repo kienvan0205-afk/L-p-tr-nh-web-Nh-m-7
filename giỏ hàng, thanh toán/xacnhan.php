@@ -1,6 +1,7 @@
 <?php
 // Trang "Xác nhận đơn & Lịch sử đặt sân" – nối với giỏ hàng (cart.php) và database của nhóm
 require_once 'config/db.php';
+require_customer();
 
 /* ---------- Hàm riêng của trang ---------- */
 function lay_don(PDO $pdo, int $id) {

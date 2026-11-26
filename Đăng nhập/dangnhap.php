@@ -3,7 +3,13 @@
 require_once __DIR__ . '/khachhang.php';
 require_once __DIR__ . '/chusan.php';
 
-$msg = '';
+$noticeMessages = [
+    'book' => 'Bạn cần đăng nhập tài khoản khách hàng để đặt sân.',
+    'cart' => 'Bạn cần đăng nhập tài khoản khách hàng để xem giỏ hàng.',
+    'customer' => 'Bạn cần đăng nhập tài khoản khách hàng để sử dụng chức năng này.',
+];
+$msg = $noticeMessages[$_GET['notice'] ?? ''] ?? '';
+$returnTo = safe_return_path($_GET['return'] ?? $_POST['return'] ?? null);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $gmail = trim((string)($_POST['gmail'] ?? ''));
     $mk = (string)($_POST['mat_khau'] ?? '');
@@ -38,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['vai_tro'] = 'Khách hàng';
                 }
                 $_SESSION['HoTen'] = $u['HoTen'];
-                header('Location: ' . ($laChuSan ? '../admin/quantri.php' : '../Trang chủ banner/index.php'));
+                header('Location: ' . ($laChuSan ? '../admin/quantri.php' : ($returnTo ?? '../Trang chủ banner/index.php')));
                 exit;
             }
             $msg = 'Sai gmail hoặc mật khẩu, hoặc tài khoản không tồn tại!';
@@ -62,6 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <h2>ĐĂNG NHẬP HỆ THỐNG</h2>
         <?php if ($msg !== ''): ?><p class="loi"><?= htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
         <form method="post" autocomplete="on">
+            <?php if ($returnTo !== null): ?><input type="hidden" name="return" value="<?= htmlspecialchars($returnTo, ENT_QUOTES, 'UTF-8') ?>"><?php endif; ?>
             <input type="email" name="gmail" placeholder="Nhập gmail" required>
             <input type="password" name="mat_khau" placeholder="Nhập mật khẩu" required>
             <div class="checkbox-row">

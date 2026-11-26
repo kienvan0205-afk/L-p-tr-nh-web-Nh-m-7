@@ -2,6 +2,10 @@
 // Trang đặt sân dùng chung PDO + bảng gio_hang với module giỏ hàng/thanh toán.
 require_once __DIR__ . '/../giỏ hàng, thanh toán/config/db.php';
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_customer();
+}
+
 function h_san($value): string {
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
@@ -177,6 +181,8 @@ $cartCount = cart_count();
 $cartUrl = '../giỏ hàng, thanh toán/cart.php';
 $homeUrl = '../Trang chủ banner/index.php';
 $historyUrl = '../giỏ hàng, thanh toán/xacnhan.php';
+$canBook = is_customer_session();
+$loginUrl = customer_login_url($_SERVER['REQUEST_URI'] ?? '');
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -303,8 +309,13 @@ $historyUrl = '../giỏ hàng, thanh toán/xacnhan.php';
             <strong id="hienThiThanhTien">0đ</strong>
         </div>
         <div class="nut-thanh-toan">
-            <button type="submit" class="nut-chon" id="btnThemGioHang" disabled>Thêm vào giỏ hàng</button>
-            <a class="nut-thanh-toan-nhanh" href="<?= h_san($cartUrl) ?>" style="text-decoration:none;text-align:center">Xem giỏ hàng</a>
+            <?php if ($canBook): ?>
+                <button type="submit" class="nut-chon" id="btnThemGioHang" disabled>Thêm vào giỏ hàng</button>
+                <a class="nut-thanh-toan-nhanh" href="<?= h_san($cartUrl) ?>" style="text-decoration:none;text-align:center">Xem giỏ hàng</a>
+            <?php else: ?>
+                <a class="nut-chon" href="<?= h_san($loginUrl) ?>" style="text-decoration:none;text-align:center">Đăng nhập để đặt sân</a>
+                <a class="nut-thanh-toan-nhanh" href="<?= h_san($loginUrl) ?>" style="text-decoration:none;text-align:center">Đăng nhập để xem giỏ hàng</a>
+            <?php endif; ?>
         </div>
         <p id="thongBaoGia" style="color:#fff;margin-top:10px"></p>
     </form>
