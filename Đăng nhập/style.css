@@ -1,0 +1,95 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #fdecea;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px 0;
+}
+
+.khung {
+    background-color: white;
+    padding: 30px;
+    border-radius: 10px;
+    border-top: 6px solid #d32f2f;
+    width: 300px;
+    text-align: center;
+}
+
+.rong {
+    width: 800px;
+}
+
+h1, h2 {
+    color: #d32f2f;
+}
+
+input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+}
+
+input[type="checkbox"] {
+    width: auto;
+    padding: 0;
+    margin: 0;
+}
+
+.checkbox-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 14px;
+    margin-bottom: 15px;
+}
+
+button {
+    width: 100%;
+    padding: 10px;
+    background-color: #d32f2f;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+a {
+    color: #d32f2f;
+}
+
+.loi {
+    background-color: #ffebee;
+    color: #b71c1c;
+    padding: 8px;
+    border-radius: 5px;
+}
+
+.thanhcong {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+    padding: 8px;
+    border-radius: 5px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+th, td {
+    border: 1px solid #ddd;
+    padding: 8px;
+}
+
+th {
+    background-color: #d32f2f;
+    color: white;
+}
