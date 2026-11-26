@@ -13,7 +13,7 @@ $projectPath = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
 $cartTarget = '../giỏ hàng, thanh toán/cart.php';
 $cartLoginUrl = '../Đăng nhập/dangnhap.php?notice=cart&return=' . rawurlencode($projectPath . '/giỏ hàng, thanh toán/cart.php');
 
-// Mảng 10 sân thể thao nạp sẵn - Sử dụng đường dẫn ảnh nội bộ images/ để nộp Google Drive
+// Mảng 10 sân thể thao nạp sẵn - Sử dụng đường dẫn ảnh nội bộ images/
 $sample_courts = [
     [
         'ma_san' => 1,
