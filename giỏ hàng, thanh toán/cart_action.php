@@ -1,7 +1,6 @@
 <?php
 // Thêm / xóa khung giờ trong giỏ hàng (bảng gio_hang)
 require_once 'config/db.php';
-require_customer();
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') redirect('cart.php');
 
 // Nút Xóa từng dòng gửi remove_id nên không cần field action
@@ -12,7 +11,7 @@ if ($action === 'add') {
     $ngay = $_POST['ngay_choi'] ?? '';
     $back = 'index.php?ngay=' . urlencode($ngay);
 
-    $st = $pdo->prepare('SELECT k.*, s.ma_san, s.loai_san, s.trang_thai AS san_tt FROM khung_gio k JOIN san s ON s.ma_san = k.ma_san WHERE k.ma_khung_gio = ?');
+    $st = $pdo->prepare('SELECT k.*, s.loai_san, s.trang_thai AS san_tt FROM khung_gio k JOIN san s ON s.ma_san = k.ma_san WHERE k.ma_khung_gio = ?');
     $st->execute([$kg]);
     $k = $st->fetch();
     $d = DateTime::createFromFormat('Y-m-d', $ngay);
@@ -32,7 +31,7 @@ if ($action === 'add') {
         if ($dup->fetchColumn() > 0) {
             flash('Khung giờ này đã có trong giỏ hàng của bạn.', 'err');
         } else {
-            $pdo->prepare('INSERT INTO gio_hang (ma_phien, idKH, ma_san, ma_khung_gio, ngay_choi) VALUES (?,?,?,?,?)')->execute([$phien, $idKH > 0 ? $idKH : null, (int)$k['ma_san'], $kg, $ngay]);
+            $pdo->prepare('INSERT INTO gio_hang (ma_phien, ma_khung_gio, ngay_choi) VALUES (?,?,?)')->execute([$phien, $kg, $ngay]);
             flash('Đã thêm "' . $k['loai_san'] . ' ' . hhmm($k['gio_bat_dau']) . '–' . hhmm($k['gio_ket_thuc']) . '" vào giỏ hàng.');
         }
     }

@@ -400,11 +400,7 @@ const loadB = () => { for (const s of stores()) { try { const v = JSON.parse(s.g
 const saveB = l => { memStore = l; for (const s of stores()) { try { s.setItem(STORE, JSON.stringify(l)); return; } catch {} } };
 
 /* ===== Giỏ hàng (trong bản PHP lấy từ bảng gio_hang, khung_gio, san, chu_san) ===== */
-let cart = [
-  { id: 1, chu: 'Nguyễn Văn Hùng', court: 'Sân bóng đá 5 người #1', date: '2026-11-10', slot: '17:30 - 19:00', gia: 375000 },
-  { id: 2, chu: 'Nguyễn Văn Hùng', court: 'Sân bóng đá 7 người #2', date: '2026-11-10', slot: '17:30 - 19:30', gia: 800000 },
-  { id: 3, chu: 'Trần Thị Mai',    court: 'Sân cầu lông #3',        date: '2026-11-11', slot: '18:00 - 19:00', gia: 120000 }
-];
+let cart = [];
 const sel = {}, chosen = () => cart.filter(c => sel[c.id]), total = () => chosen().reduce((a, c) => a + c.gia, 0), dmy = d => d.split('-').reverse().join('/');
 let maCK = 'DS' + rnd().slice(-6);
 const phoneEl = $('phone'), curPhone = () => phoneEl.value.replace(/\D/g, ''), validPhone = p => /^0\d{9}$/.test(p);
@@ -421,7 +417,7 @@ on(document, 'click', e => { const a = e.target.closest('[data-go]'); if (a) { e
 
 function renderCart() {
   $('ncnt').textContent = cart.length || ''; $('ncnt').hidden = !cart.length;
-  if (!cart.length) { $('cartBody').innerHTML = '<div class="empty"><b>Giỏ hàng của bạn còn trống</b><p class="note">Chọn sân ở trang danh sách để thêm vào giỏ.</p></div>'; return; }
+  if (!cart.length) { $('cartBody').innerHTML = '<div class="empty"><b>Giỏ hàng của bạn còn trống</b></div>'; return; }
   let h = '<div class="cartbox"><div class="cart-head"><div><input type="checkbox" id="chkAll" aria-label="Chọn tất cả"></div><div>Sân</div><div>Ngày &amp; giờ</div><div>Thành tiền</div><div>Thao tác</div></div>', shop = null;
   cart.forEach(c => {
     if (c.chu !== shop) { shop = c.chu; h += '<div class="shop-row">🏪 <b>' + c.chu + '</b></div>'; }
@@ -579,7 +575,6 @@ on($('confirmBtn'), 'click', confirmBooking);
 on($('bookForm'), 'submit', e => e.preventDefault());
 on($('bookForm'), 'keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); confirmBooking(); } });
 
-cart.forEach(c => { if (c.id !== 2) sel[c.id] = true; });   // tích sẵn 2 sân để dễ thử
 go('cart');
 </script>
 </body>

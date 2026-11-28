@@ -1,7 +1,6 @@
 <?php
 // Trang "Xác nhận đơn & Lịch sử đặt sân" – nối với giỏ hàng (cart.php) và database của nhóm
 require_once 'config/db.php';
-require_customer();
 
 /* ---------- Hàm riêng của trang ---------- */
 function lay_don(PDO $pdo, int $id) {
@@ -261,7 +260,6 @@ $self_q = $sdt_tra !== '' ? '&sdt=' . urlencode($sdt_tra) : '';
             <button class="btn ghost block" type="submit">Hủy đơn</button></form>
         <?php endif; ?>
         <a class="btn ghost block" href="cart.php">Về giỏ hàng<?= $n_cart ? ' (' . $n_cart . ' sân)' : '' ?></a>
-        <div class="muted"><a href="index.php">Đặt thêm sân</a></div>
       </div>
     </div>
   </div>
