@@ -1,6 +1,12 @@
 <?php
 require __DIR__ . '/db.php';
 
+// Chưa đăng nhập -> về trang đăng nhập
+if ($CHU_SAN_ID <= 0) {
+    header('Location: ' . LOGIN_URL);
+    exit;
+}
+
 /* =========================================================
  * 1. XỬ LÝ HÀNH ĐỘNG (POST) – xong thì redirect (PRG)
  * ========================================================= */
@@ -16,6 +22,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit('CSRF token không hợp lệ.');
     }
     $action = $_POST['action'] ?? '';
+
+    /* ---- Đăng xuất: hủy session rồi về trang đăng nhập ---- */
+    if ($action === 'dang_xuat') {
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $p = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $p['path'], $p['domain'], $p['secure'], $p['httponly']);
+        }
+        session_destroy();
+        header('Location: ' . LOGIN_URL);
+        exit;
+    }
 
     /* ---- Xác nhận / Từ chối đơn ----
        dondatsan.TrangThai: 0 Chờ xác nhận, 1 Đã xác nhận, 2 Đã hoàn thành, 3 Đã hủy
@@ -69,62 +87,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         back('profile', 'ok', 'Đã cập nhật thông tin.');
     }
 
-    /* ---- Cập nhật giá / trạng thái sân (trong mức cho phép) ---- */
-    if ($action === 'cap_nhat_san') {
-        $id  = (int)($_POST['id'] ?? 0);
-        $gia = (int)($_POST['gia'] ?? 0);
-        $tt  = $_POST['trang_thai'] ?? '';
-
-        if ($gia < GIA_MIN || $gia > GIA_MAX) {
-            back('courts', 'err', 'Giá phải trong khoảng ' . tien(GIA_MIN) . ' – ' . tien(GIA_MAX) . '.');
-        }
-        if (!in_array($tt, ['Hoạt động', 'Bảo trì'], true)) back('courts', 'err', 'Trạng thái không hợp lệ.');
-
-        $st = $pdo->prepare("UPDATE san SET gia=?, trang_thai=? WHERE ma_san=? AND ma_chu_san=?");
-        $st->execute([$gia, $tt, $id, $CHU_SAN_ID]);
-        back('courts', $st->rowCount() ? 'ok' : 'err', $st->rowCount() ? 'Đã cập nhật sân.' : 'Sân không hợp lệ.');
-    }
-
     /* ---- Thêm sân mới ---- */
     if ($action === 'them_san') {
-        $loai = trim($_POST['loai_san'] ?? '');
-        $mota = trim($_POST['mo_ta'] ?? '');
-        $gia  = (int)($_POST['gia'] ?? 0);
-        $tt   = $_POST['trang_thai'] ?? 'Hoạt động';
+        $loai   = trim($_POST['loai_san'] ?? '');
+        $diachi = trim($_POST['dia_chi_san'] ?? '');
+        $mota   = trim($_POST['mo_ta'] ?? '');
+        $gia    = (int)($_POST['gia'] ?? 0);
+        $tt     = $_POST['trang_thai'] ?? 'Hoạt động';
 
-        if ($loai === '' || mb_strlen($loai) > 225) back('addcourt', 'err', 'Tên loại sân không hợp lệ (tối đa 225 ký tự).');
+        if (!in_array($loai, LOAI_SAN, true)) back('addcourt', 'err', 'Vui lòng chọn loại sân trong danh sách.');
+        if ($diachi === '' || mb_strlen($diachi) > 255) back('addcourt', 'err', 'Địa chỉ sân không hợp lệ (tối đa 255 ký tự).');
         if (mb_strlen($mota) > 2000) back('addcourt', 'err', 'Mô tả quá dài (tối đa 2000 ký tự).');
         if ($gia < GIA_MIN || $gia > GIA_MAX) {
             back('addcourt', 'err', 'Giá phải trong khoảng ' . tien(GIA_MIN) . ' – ' . tien(GIA_MAX) . '.');
         }
         if (!in_array($tt, ['Hoạt động', 'Bảo trì'], true)) back('addcourt', 'err', 'Trạng thái không hợp lệ.');
 
-        $pdo->prepare(
-            "INSERT INTO san (ma_chu_san, loai_san, mo_ta, gia, trang_thai, hinh_anh) VALUES (?, ?, ?, ?, ?, '')"
-        )->execute([$CHU_SAN_ID, $loai, $mota, $gia, $tt]);
-        back('addcourt', 'ok', 'Đã thêm sân mới.');
+        try {
+            $anh = luu_anh_san('hinh_anh');
+            if ($anh === null) throw new RuntimeException('Vui lòng chọn hình ảnh cho sân.');
+        } catch (RuntimeException $ex) {
+            back('addcourt', 'err', $ex->getMessage());
+        }
+
+        try {
+            $pdo->prepare(
+                "INSERT INTO san (ma_chu_san, loai_san, mo_ta, dia_chi, gia, trang_thai, hinh_anh) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            )->execute([$CHU_SAN_ID, $loai, $mota, $diachi, $gia, $tt, $anh]);
+        } catch (PDOException $ex) {
+            xoa_anh_san($anh); // không để lại file mồ côi
+            throw $ex;
+        }
+        back('addcourt', 'ok', 'Đã thêm sân mới. Sân sẽ hiển thị trên trang chủ khi ở trạng thái Hoạt động.');
     }
 
     /* ---- Sửa đầy đủ thông tin sân (loại sân, mô tả, giá, trạng thái) ---- */
     if ($action === 'sua_san') {
-        $id   = (int)($_POST['id'] ?? 0);
-        $loai = trim($_POST['loai_san'] ?? '');
-        $mota = trim($_POST['mo_ta'] ?? '');
-        $gia  = (int)($_POST['gia'] ?? 0);
-        $tt   = $_POST['trang_thai'] ?? '';
+        $id     = (int)($_POST['id'] ?? 0);
+        $loai   = trim($_POST['loai_san'] ?? '');
+        $diachi = trim($_POST['dia_chi_san'] ?? '');
+        $mota   = trim($_POST['mo_ta'] ?? '');
+        $gia    = (int)($_POST['gia'] ?? 0);
+        $tt     = $_POST['trang_thai'] ?? '';
 
-        if ($loai === '' || mb_strlen($loai) > 225) back('addcourt', 'err', 'Tên loại sân không hợp lệ (tối đa 225 ký tự).');
+        if (!in_array($loai, LOAI_SAN, true)) back('addcourt', 'err', 'Vui lòng chọn loại sân trong danh sách.');
+        if ($diachi === '' || mb_strlen($diachi) > 255) back('addcourt', 'err', 'Địa chỉ sân không hợp lệ (tối đa 255 ký tự).');
         if (mb_strlen($mota) > 2000) back('addcourt', 'err', 'Mô tả quá dài (tối đa 2000 ký tự).');
         if ($gia < GIA_MIN || $gia > GIA_MAX) {
             back('addcourt', 'err', 'Giá phải trong khoảng ' . tien(GIA_MIN) . ' – ' . tien(GIA_MAX) . '.');
         }
         if (!in_array($tt, ['Hoạt động', 'Bảo trì'], true)) back('addcourt', 'err', 'Trạng thái không hợp lệ.');
 
-        $st = $pdo->prepare(
-            "UPDATE san SET loai_san=?, mo_ta=?, gia=?, trang_thai=? WHERE ma_san=? AND ma_chu_san=?"
-        );
-        $st->execute([$loai, $mota, $gia, $tt, $id, $CHU_SAN_ID]);
-        back('addcourt', $st->rowCount() ? 'ok' : 'err', $st->rowCount() ? 'Đã cập nhật sân.' : 'Sân không hợp lệ.');
+        // Sân phải thuộc chủ sân hiện tại; lấy ảnh cũ để biết có cần thay không
+        $st = $pdo->prepare("SELECT hinh_anh FROM san WHERE ma_san = ? AND ma_chu_san = ?");
+        $st->execute([$id, $CHU_SAN_ID]);
+        $cu = $st->fetch();
+        if (!$cu) back('addcourt', 'err', 'Sân không hợp lệ.');
+
+        try {
+            $anhMoi = luu_anh_san('hinh_anh'); // null = giữ ảnh cũ
+        } catch (RuntimeException $ex) {
+            back('addcourt', 'err', $ex->getMessage());
+        }
+        $anh = $anhMoi ?? $cu['hinh_anh'];
+
+        try {
+            $pdo->prepare(
+                "UPDATE san SET loai_san=?, mo_ta=?, dia_chi=?, gia=?, trang_thai=?, hinh_anh=? WHERE ma_san=? AND ma_chu_san=?"
+            )->execute([$loai, $mota, $diachi, $gia, $tt, $anh, $id, $CHU_SAN_ID]);
+        } catch (PDOException $ex) {
+            xoa_anh_san($anhMoi);
+            throw $ex;
+        }
+        if ($anhMoi !== null) xoa_anh_san($cu['hinh_anh']);
+        back('addcourt', 'ok', 'Đã cập nhật sân.');
     }
 
     /* ---- Xóa sân (và các khung giờ của sân đó, vì khung_gio khóa ngoại tới san) ---- */
@@ -132,13 +168,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)($_POST['id'] ?? 0);
         try {
             $pdo->beginTransaction();
-            $st = $pdo->prepare("SELECT ma_san FROM san WHERE ma_san = ? AND ma_chu_san = ? FOR UPDATE");
+            $st = $pdo->prepare("SELECT ma_san, hinh_anh FROM san WHERE ma_san = ? AND ma_chu_san = ? FOR UPDATE");
             $st->execute([$id, $CHU_SAN_ID]);
-            if (!$st->fetch()) throw new RuntimeException('Sân không hợp lệ.');
+            $san = $st->fetch();
+            if (!$san) throw new RuntimeException('Sân không hợp lệ.');
 
             $pdo->prepare("DELETE FROM khung_gio WHERE ma_san = ?")->execute([$id]);
             $pdo->prepare("DELETE FROM san WHERE ma_san = ? AND ma_chu_san = ?")->execute([$id, $CHU_SAN_ID]);
             $pdo->commit();
+            xoa_anh_san($san['hinh_anh']);
             back('addcourt', 'ok', 'Đã xóa sân (và các khung giờ liên quan).');
         } catch (RuntimeException $ex) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -252,6 +290,11 @@ $chuSan = $st->fetch();
     <link rel="stylesheet" href="quantri.css">
 </head>
 <body>
+<form method="post" class="logout-form" onsubmit="return confirm('Bạn muốn đăng xuất?')">
+    <?= csrf_field() ?>
+    <input type="hidden" name="action" value="dang_xuat">
+    <button class="btn btn-logout" type="submit">Đăng xuất</button>
+</form>
 <div class="admin-container">
     <aside class="sidebar">
         <h2><?= e($chuSan['ten_chu_san'] ?? 'Chủ Sân Admin') ?></h2>
@@ -313,37 +356,27 @@ $chuSan = $st->fetch();
         <section id="courts" class="content-section">
             <div class="table-section">
                 <h2>Sân của tôi</h2>
+                <p class="note" style="margin-bottom:12px">Chỉ xem thông tin. Muốn thay đổi, vào mục "Thêm sân" và bấm Sửa.</p>
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>Loại sân</th><th>Mô tả</th>
-                            <th>Giá (<?= number_format(GIA_MIN, 0, ',', '.') ?> – <?= number_format(GIA_MAX, 0, ',', '.') ?>)</th>
-                            <th>Trạng thái sân</th><th>Tình trạng hiện tại</th><th></th>
+                            <th>Ảnh</th><th>Loại sân</th><th>Địa chỉ</th><th>Mô tả</th>
+                            <th>Giá</th><th>Trạng thái sân</th><th>Tình trạng hiện tại</th>
                         </tr>
                     </thead>
                     <tbody>
                     <?php foreach ($dsSan as $s):
                         $slots = $khungGioTheoSan[$s['ma_san']] ?? [];
                         $het = $slots && !array_filter($slots, fn($k) => $k['trang_thai'] === 'Trống');
+                        $anhUrl = anh_url($s['hinh_anh']);
                     ?>
                         <tr>
-                            <td>
-                                <form method="post" id="san-<?= (int)$s['ma_san'] ?>">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="action" value="cap_nhat_san">
-                                    <input type="hidden" name="id" value="<?= (int)$s['ma_san'] ?>">
-                                </form>
-                                <?= e($s['loai_san']) ?>
-                            </td>
+                            <td><?php if ($anhUrl): ?><img class="thumb" src="<?= e($anhUrl) ?>" alt=""><?php else: ?>—<?php endif; ?></td>
+                            <td><?= e($s['loai_san']) ?></td>
+                            <td><?= e($s['dia_chi'] ?? '') ?></td>
                             <td><?= e($s['mo_ta']) ?></td>
-                            <td><input class="inline-input" form="san-<?= (int)$s['ma_san'] ?>" type="number" name="gia"
-                                       min="<?= GIA_MIN ?>" max="<?= GIA_MAX ?>" step="1000" value="<?= (int)$s['gia'] ?>"></td>
-                            <td>
-                                <select class="inline-input" form="san-<?= (int)$s['ma_san'] ?>" name="trang_thai">
-                                    <option value="Hoạt động" <?= $s['trang_thai'] === 'Hoạt động' ? 'selected' : '' ?>>Hoạt động</option>
-                                    <option value="Bảo trì"   <?= $s['trang_thai'] === 'Bảo trì'   ? 'selected' : '' ?>>Bảo trì</option>
-                                </select>
-                            </td>
+                            <td><?= tien($s['gia']) ?></td>
+                            <td><span class="status <?= $s['trang_thai'] === 'Hoạt động' ? 'approved' : 'rejected' ?>"><?= e($s['trang_thai']) ?></span></td>
                             <td>
                                 <?php if ($s['trang_thai'] === 'Bảo trì'): ?>
                                     <span class="status rejected">Bảo trì</span>
@@ -355,10 +388,9 @@ $chuSan = $st->fetch();
                                     <span class="status approved">Còn trống</span>
                                 <?php endif; ?>
                             </td>
-                            <td><button class="btn btn-edit" form="san-<?= (int)$s['ma_san'] ?>" type="submit">Lưu</button></td>
                         </tr>
                     <?php endforeach; ?>
-                    <?php if (!$dsSan): ?><tr><td colspan="6">Chưa có sân nào.</td></tr><?php endif; ?>
+                    <?php if (!$dsSan): ?><tr><td colspan="7">Chưa có sân nào.</td></tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -395,14 +427,26 @@ $chuSan = $st->fetch();
         <section id="addcourt" class="content-section">
             <div class="table-section">
                 <h2 id="addcourt-title">Thêm sân mới</h2>
-                <form method="post" class="profile-form" id="addcourt-form">
+                <form method="post" class="profile-form" id="addcourt-form" enctype="multipart/form-data">
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="them_san" id="addcourt-action">
                     <input type="hidden" name="id" value="" id="addcourt-id">
 
                     <label>Loại sân</label>
-                    <input type="text" name="loai_san" id="addcourt-loai" maxlength="225" required
-                           placeholder="VD: Sân bóng đá 5 người">
+                    <select name="loai_san" id="addcourt-loai" required>
+                        <option value="">-- Chọn loại sân --</option>
+                        <?php foreach (LOAI_SAN as $l): ?>
+                            <option value="<?= e($l) ?>"><?= e($l) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+
+                    <label>Địa chỉ sân</label>
+                    <input type="text" name="dia_chi_san" id="addcourt-diachi" maxlength="255" required
+                           placeholder="VD: 123 Lê Duẩn, Quận 1, TP.HCM">
+
+                    <label>Hình ảnh <small>(JPG, PNG, WEBP – tối đa 2MB)</small></label>
+                    <input type="file" name="hinh_anh" id="addcourt-anh" accept="image/jpeg,image/png,image/webp" required>
+                    <img id="addcourt-preview" class="preview" alt="" style="display:none">
 
                     <label>Mô tả</label>
                     <textarea name="mo_ta" id="addcourt-mota" rows="3" maxlength="2000"></textarea>
@@ -427,19 +471,21 @@ $chuSan = $st->fetch();
                 <h2>Danh sách sân hiện có</h2>
                 <table class="data-table">
                     <thead>
-                        <tr><th>Loại sân</th><th>Mô tả</th><th>Giá</th><th>Trạng thái</th><th>Thao tác</th></tr>
+                        <tr><th>Ảnh</th><th>Loại sân</th><th>Địa chỉ</th><th>Mô tả</th><th>Giá</th><th>Trạng thái</th><th>Thao tác</th></tr>
                     </thead>
                     <tbody>
-                    <?php foreach ($dsSan as $s): ?>
+                    <?php foreach ($dsSan as $s): $anhUrl = anh_url($s['hinh_anh']); ?>
                         <tr>
+                            <td><?php if ($anhUrl): ?><img class="thumb" src="<?= e($anhUrl) ?>" alt=""><?php else: ?>—<?php endif; ?></td>
                             <td><?= e($s['loai_san']) ?></td>
+                            <td><?= e($s['dia_chi'] ?? '') ?></td>
                             <td><?= e($s['mo_ta']) ?></td>
                             <td><?= tien($s['gia']) ?></td>
                             <td><span class="status <?= $s['trang_thai'] === 'Hoạt động' ? 'approved' : 'rejected' ?>">
                                 <?= e($s['trang_thai']) ?></span></td>
                             <td>
                                 <button class="btn btn-edit" type="button"
-                                    onclick='editCourt(<?= (int)$s["ma_san"] ?>, <?= json_encode($s["loai_san"], JSON_UNESCAPED_UNICODE) ?>, <?= json_encode($s["mo_ta"], JSON_UNESCAPED_UNICODE) ?>, <?= (int)$s["gia"] ?>, <?= json_encode($s["trang_thai"], JSON_UNESCAPED_UNICODE) ?>)'>Sửa</button>
+                                    onclick='editCourt(<?= (int)$s["ma_san"] ?>, <?= json_encode($s["loai_san"], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, <?= json_encode($s["mo_ta"], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, <?= (int)$s["gia"] ?>, <?= json_encode($s["trang_thai"], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, <?= json_encode($s["dia_chi"] ?? "", JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, <?= json_encode($anhUrl, JSON_HEX_APOS | JSON_HEX_QUOT) ?>)'>Sửa</button>
                                 <form method="post" class="inline-form"
                                       onsubmit="return confirm('Xóa sân này? Toàn bộ khung giờ của sân cũng sẽ bị xóa.')">
                                     <?= csrf_field() ?>
@@ -450,7 +496,7 @@ $chuSan = $st->fetch();
                             </td>
                         </tr>
                     <?php endforeach; ?>
-                    <?php if (!$dsSan): ?><tr><td colspan="5">Chưa có sân nào.</td></tr><?php endif; ?>
+                    <?php if (!$dsSan): ?><tr><td colspan="7">Chưa có sân nào.</td></tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -585,14 +631,25 @@ function switchTab(event, tabId) {
     showTab(tabId);
 }
 
-function editCourt(id, loai, mota, gia, trangThai) {
+function showPreview(url) {
+    const img = document.getElementById('addcourt-preview');
+    img.src = url || '';
+    img.style.display = url ? 'block' : 'none';
+}
+
+function editCourt(id, loai, mota, gia, trangThai, diaChi, anhUrl) {
     document.getElementById('addcourt-title').innerText = 'Cập nhật sân';
     document.getElementById('addcourt-action').value = 'sua_san';
     document.getElementById('addcourt-id').value = id;
     document.getElementById('addcourt-loai').value = loai;
+    document.getElementById('addcourt-diachi').value = diaChi;
     document.getElementById('addcourt-mota').value = mota;
     document.getElementById('addcourt-gia').value = gia;
     document.getElementById('addcourt-trangthai').value = trangThai;
+    const file = document.getElementById('addcourt-anh');
+    file.value = '';
+    file.required = false;          // khi sửa: không chọn ảnh mới = giữ ảnh cũ
+    showPreview(anhUrl);
     document.getElementById('addcourt-submit').innerText = 'Cập nhật sân';
     document.getElementById('addcourt-cancel').style.display = 'inline-block';
     document.getElementById('addcourt-form').scrollIntoView({ behavior: 'smooth' });
@@ -603,12 +660,18 @@ function resetAddCourtForm() {
     document.getElementById('addcourt-action').value = 'them_san';
     document.getElementById('addcourt-id').value = '';
     document.getElementById('addcourt-form').reset();
+    document.getElementById('addcourt-anh').required = true;
+    showPreview('');
     document.getElementById('addcourt-submit').innerText = 'Thêm sân';
     document.getElementById('addcourt-cancel').style.display = 'none';
 }
 
 document.addEventListener('DOMContentLoaded', function () {
     showTab(location.hash.replace('#', ''));
+
+    document.getElementById('addcourt-anh').addEventListener('change', function () {
+        showPreview(this.files[0] ? URL.createObjectURL(this.files[0]) : '');
+    });
 
     document.querySelectorAll('.data-table tbody tr').forEach(row => {
         row.addEventListener('click', function (e) {
